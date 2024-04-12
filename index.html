@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Train Journey</title>
+    <script type="text/javascript">
+      window.errors = []
+      if (window.addEventListener) {
+        window.addEventListener(
+          'error',
+          function (e) {
+            if (e.message) {
+              if (e.error && e.error.stack) {
+                if (e.message.indexOf('Uncaught SyntaxError') === 0) {
+                  window.errors.push(
+                    e.message +
+                      ' at ' +
+                      e.filename +
+                      ':' +
+                      e.lineno +
+                      ':' +
+                      e.colno
+                  )
+                } else {
+                  window.errors.push(e.error.stack)
+                }
+                if (window.onNewError) window.onNewError()
+              }
+            } else {
+              window.errors.push(
+                'Problem loading ' + (e.target.src || e.target.href)
+              )
+              if (window.onNewError) window.onNewError()
+            }
+            window.onerror = null
+          },
+          true
+        ) // true so that errors bubble up to window
+        window.addEventListener(
+          'unhandledrejection',
+          function (e) {
+            window.errors.push(
+              e.reason && (e.reason.stack || e.reason.message || e.reason)
+            )
+            if (window.onNewError) window.onNewError()
+          },
+          false
+        )
+      }
+      window.onerror = function (message, source, lineno, colno, error) {
+        if (colno) {
+          lineno += ':' + colno
+        }
+        if (error && error.stack) {
+          window.errors.push(error.stack)
+        } else {
+          window.errors.push(message + ' at ' + source + ':' + lineno)
+        }
+        if (window.onNewError) window.onNewError()
+      }
+    </script>
+     <style>
+html,
+body {
+  height: 100%;
+}
+body,
+::backdrop {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: black;
+  font-size: 0;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  background-position: center;
+  background-size: cover;
+}
+#wrapper {
+  display: block;
+  position: relative;
+}
+.no-cursor #wrapper {
+  cursor: none;
+}
+.loading #wrapper {
+  visibility: hidden;
+}
+.stretch-stage #wrapper {
+  width: 100vw;
+  height: 100vh;
+}
+/* CSS for proportional wrapper scaling is added dynamically by htmlifier.ts */
+#monitors {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+#stage {
+  width: 100%;
+  height: 100%;
+}
+#loading-progress {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  border-radius: 20px;
+  --progress: 0%;
+  z-index: 100;
+}
+.show-loading-progress #loading-progress {
+  display: block;
+}
+#loading-progress::before {
+  content: attr(data-progress);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+}
+#loading-progress::after {
+  content: '';
+  display: block;
+  height: 16px;
+  border-radius: 20px;
+  width: var(--progress);
+}
+#loading-image {
+  position: fixed;
+  max-width: 100%;
+  max-height: 100%;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  margin: auto;
+}
+.stretch-loading-image #loading-image {
+  width: 100%;
+  height: 100%;
+}
+.buttons {
+  position: fixed;
+  top: 0;
+  right: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-bottom-left-radius: 12px;
+}
+.buttons .button,
+.buttons button {
+  display: none;
+  -webkit-appearance: none;
+  border: none;
+  background: none;
+  width: 48px;
+  height: 48px;
+  cursor: pointer;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 24px;
+}
+.buttons button:disabled,
+#add-sprite-file:disabled + #add-sprite-btn {
+  cursor: auto;
+  opacity: 0.5;
+}
+#start-btn {
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"%3E%3Cpath d="M8 5v14l11-7z" fill="%23fff"/%3E%3C/svg%3E%0A');
+}
+.running #start-btn {
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"%3E%3Cpath d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="%23fff"/%3E%3C/svg%3E');
+}
+#stop-btn {
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"%3E%3Cpath d="M6 6h12v12H6z" fill="%23fff"/%3E%3C/svg%3E%0A');
+}
+#fullscreen-btn {
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Cpath d="M14 28h-4v10h10v-4h-6v-6zm-4-8h4v-6h6v-4H10v10zm24 14h-6v4h10V28h-4v6zm-6-24v4h6v6h4V10H28z" fill="%23fff"/%3E%3C/svg%3E');
+}
+.fullscreen #fullscreen-btn {
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48"%3E%3Cpath d="M10 32h6v6h4V28H10v4zm6-16h-6v4h10V10h-4v6zm12 22h4v-6h6v-4H28v10zm4-22v-6h-4v10h10v-4h-6z" fill="%23fff"/%3E%3C/svg%3E');
+}
+#download-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'%3E%3Cpath d='M5,20h14v-2H5V20z M19,9h-4V3H9v6H5l7,7L19,9z'/%3E%3C/svg%3E");
+}
+#add-sprite-btn {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23fff'%3E%3Cpath d='M19 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z'/%3E%3C/svg%3E");
+}
+#add-sprite-file {
+  display: none;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+.show-start-stop-btns #start-btn,
+.show-start-stop-btns #stop-btn,
+.show-fullscreen-btn #fullscreen-btn,
+.show-download-btn #download-btn,
+.show-add-sprite-btn #add-sprite-btn,
+.show-add-sprite-btn #add-sprite-file {
+  display: inline-block;
+}
+.monitor {
+  position: absolute;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  overflow: hidden;
+  padding: 3px;
+  white-space: pre;
+}
+.show-monitor-box .monitor {
+  border-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.3);
+}
+.monitor-label {
+  margin: 0 5px;
+  font-weight: bold;
+}
+.monitor-value {
+  display: inline-block;
+  vertical-align: top;
+  min-width: 34px;
+  text-align: center;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+  transform: translateZ(0);
+}
+.default .monitor-value,
+.slider .monitor-value {
+  margin: 0 5px;
+  padding: 1px 3px;
+}
+.show-monitor-box .default .monitor-value,
+.show-monitor-box .slider .monitor-value {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.large {
+  padding: 0.1rem 0.25rem;
+  min-width: 3rem;
+}
+.show-monitor-box .large {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+.large .monitor-label {
+  display: none;
+}
+.large .monitor-value {
+  font-size: 1rem;
+  width: 100%;
+}
+.list {
+  padding: 0;
+  overflow: auto;
+  overflow-x: hidden;
+}
+.list .monitor-label {
+  text-align: center;
+  padding: 3px;
+  width: 100%;
+  display: block;
+  margin: 0;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+}
+.list .monitor-value {
+  display: block;
+}
+.row {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  height: 24px;
+  box-sizing: border-box;
+  transform: translateZ(0);
+}
+.index {
+  font-weight: bold;
+  margin: 0 3px;
+  flex: none;
+}
+.row-value {
+  flex: auto;
+  margin: 0 3px;
+  text-align: left;
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  height: 22px;
+  padding: 3px 5px;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.show-monitor-box .row-value {
+  border-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0, 0, 0, 0.5);
+}
+.slider input {
+  display: block;
+  width: 100%;
+  transform: translateZ(0);
+}
+#asking-box {
+  display: none;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background-color: rgba(33, 33, 33, 0.7);
+}
+.asking #asking-box {
+  display: block;
+}
+#question {
+  display: block;
+  margin: 0 10px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: white;
+}
+#answer {
+  border: none;
+  background: none;
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  color: white;
+  padding: 10px;
+  box-sizing: border-box;
+}
+#answer:focus {
+  outline: none;
+}
+#errors {
+  -webkit-appearance: none;
+  border: none;
+  background: rgba(255, 0, 0, 0.7);
+  color: white;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  display: none;
+}
+
+</style> <style>
+#wrapper { width: 100vw; height: 75vw; }
+@media (min-aspect-ratio: 480/360) {
+#wrapper { height: 100vh; width: 133.33333333333331vh; }
+}
+#loading-progress {
+border: 1px solid #00ffff;
+}
+#loading-progress::before {
+color: #00ffff;
+}
+#loading-progress::after {
+background-color: #00ffff;
+}
+.monitor {
+color: #ffffff;
+}
+</style>
+  </head>
+  <body class="loading show-loading-progress show-fullscreen-btn show-monitor-box">
+    <div id="wrapper">
+      <canvas id="stage"></canvas>
+      <div id="monitors"></div>
+      <div id="asking-box">
+        <label id="question" for="answer">Question</label>
+        <input type="text" id="answer" />
+      </div>
+    </div>
+    <div id="loading-progress" data-progress="0%"></div>
+     
+    <div class="buttons">
+      <!--
+        Only support sprite files (no images) for now. See
+        https://github.com/SheepTester/htmlifier/issues/67#issuecomment-894746718
+      -->
+      <input
+        type="file"
+        id="add-sprite-file"
+        accept=".sprite2, .sprite3"
+        aria-label="Select a Scratch sprite to add"
+        multiple
+      />
+      <label
+        class="button"
+        id="add-sprite-btn"
+        for="add-sprite-file"
+        title="Add Scratch sprite to project"
+      ></label>
+      <button id="download-btn" aria-label="Download Scratch project"></button>
+      <button id="start-btn" aria-label="Start"></button>
+      <button id="stop-btn" aria-label="Stop" disabled></button>
+      <button id="fullscreen-btn" aria-label="Enter/exit fullscreen"></button>
+    </div>
+    <textarea id="errors" readonly></textarea>
+    <script src="./vm.js"></script> <script>
+const noop = () => null
+
+window.Scratch = {
+  get vm () {
+    return window.vm
+  },
+  get renderer () {
+    return window.vm.runtime.renderer
+  },
+  get audioEngine () {
+    return window.vm.runtime.audioEngine
+  },
+  get bitmapAdapter () {
+    return window.vm.runtime.v2BitmapAdapter
+  },
+  get videoProvider () {
+    return window.vm.runtime.ioDevices.video.provider
+  }
+}
+
+const CLOUD_PREFIX = '\u2601 '
+window.setCloud = (name, value) => {
+  vm.postIOData('cloud', {
+    varUpdate: {
+      name: CLOUD_PREFIX + name,
+      value
+    }
+  })
+}
+function postError (err) {
+  setCloud('eval error', err.toString())
+}
+
+class CloudProvider {
+  constructor (options) {
+    this._serverUrl = options.cloud.serverUrl
+    this._specialBehaviours = options.cloud.specialBehaviours
+    this._options = options
+
+    this._ws = null
+
+    this.createVariable = noop
+    this.renameVariable = noop
+    this.deleteVariable = noop
+
+    this._handleMessage = event => {
+      event.data.split('\n').forEach(message => {
+        if (message) {
+          const { name, value } = JSON.parse(message)
+          vm.postIOData('cloud', {
+            varUpdate: { name, value }
+          })
+        }
+      })
+    }
+    this._handleOpen = () => {
+      this._sendData({ method: 'handshake' })
+    }
+    this._handleClose = () => {
+      setTimeout(() => this._openConnection(), 500)
+    }
+
+    this.handleUrlChange = () => {
+      setCloud('url', window.location.href)
+    }
+    if (this._specialBehaviours) {
+      window.addEventListener('hashchange', this.handleUrlChange)
+      window.addEventListener('popstate', this.handleUrlChange)
+      // Paste output
+      window.addEventListener('paste', event => {
+        setCloud(
+          'pasted',
+          (event.clipboardData || window.clipboardData).getData('text')
+        )
+      })
+    }
+
+    if (this._serverUrl) {
+      this._openConnection()
+    }
+  }
+
+  _openConnection () {
+    try {
+      this._ws = new WebSocket(this._serverUrl)
+    } catch (error) {
+      console.warn(error)
+      return
+    }
+    this._ws.onmessage = this._handleMessage
+    this._ws.onopen = this._handleOpen
+    this._ws.onclose = this._handleClose
+  }
+
+  _sendData (data) {
+    data.user = this._options.username
+    data.project_id = this._options.cloud.projectId
+    this._ws.send(JSON.stringify(data) + '\n')
+  }
+
+  updateVariable (name, value) {
+    if (this._specialBehaviours) {
+      let matched = true
+      if (name === CLOUD_PREFIX + 'eval') {
+        try {
+          Promise.resolve(eval(value))
+            .then(output => {
+              setCloud('eval output', output)
+            })
+            .catch(postError)
+        } catch (error) {
+          postError(error)
+        }
+      } else if (name === CLOUD_PREFIX + 'open link') {
+        try {
+          window.open(value, '_blank')
+        } catch (error) {
+          postError(error)
+        }
+      } else if (name === CLOUD_PREFIX + 'redirect') {
+        window.location = value
+      } else if (name === CLOUD_PREFIX + 'set clipboard') {
+        try {
+          navigator.clipboard.writeText(value).catch(postError)
+        } catch (error) {
+          postError(error)
+        }
+      } else if (name === CLOUD_PREFIX + 'set server ip') {
+        this._cloudHost = value
+        if (this._ws) {
+          this._ws.onclose = noop
+          this._ws.close()
+        }
+        this._openConnection()
+      } else if (name === CLOUD_PREFIX + 'username') {
+        this._options.username = value
+        vm.postIOData('userData', { username: value })
+      } else {
+        matched = false
+      }
+      if (matched) {
+        return
+      }
+    }
+    if (
+      !this._serverUrl ||
+      (this._specialBehaviours &&
+        name.startsWith(CLOUD_PREFIX + 'local storage'))
+    ) {
+      try {
+        localStorage.setItem('[s3] ' + name, value)
+      } catch (error) {
+        postError(error)
+      }
+    } else {
+      this._sendData({ method: 'set', name, value })
+    }
+  }
+
+  requestCloseConnection () {
+    if (
+      this._ws &&
+      this._ws.readyState !== WebSocket.CLOSING &&
+      this._ws.readyState !== WebSocket.CLOSED
+    ) {
+      this._ws.onclose = noop
+      this._ws.close()
+    }
+  }
+}
+
+// Based on
+// https://github.com/LLK/scratch-gui/blob/7b658c60c7c04055e575601a861195fe6c9933f3/src/lib/video/camera.js
+// https://github.com/LLK/scratch-gui/blob/7b658c60c7c04055e575601a861195fe6c9933f3/src/lib/video/video-provider.js
+class VideoProvider {
+  constructor (width, height) {
+    this._dimensions = [width, height]
+    this.mirror = true
+    this._frameCacheTimeout = 16
+    this._video = null
+    this._track = null
+    this._workspace = []
+  }
+
+  get video () {
+    return this._video
+  }
+
+  enableVideo () {
+    this.enabled = true
+    return this._setupVideo()
+  }
+
+  disableVideo () {
+    this.enabled = false
+    if (this._singleSetup) {
+      this._singleSetup
+        .then(this._teardown.bind(this))
+        .catch(err => this.onError(err))
+    }
+  }
+
+  _teardown () {
+    if (this.enabled === false) {
+      requestStack.pop()
+      const disableTrack = requestStack.length === 0
+      this._singleSetup = null
+      this._video = null
+      if (this._track && disableTrack) {
+        this._track.stop()
+      }
+      this._track = null
+    }
+  }
+
+  getFrame ({
+    dimensions = this._dimensions,
+    mirror = this.mirror,
+    format = 'image-data',
+    cacheTimeout = this._frameCacheTimeout
+  }) {
+    if (!this.videoReady) {
+      return null
+    }
+    const [width, height] = dimensions
+    const workspace = this._getWorkspace({
+      dimensions,
+      mirror: Boolean(mirror)
+    })
+    const { videoWidth, videoHeight } = this._video
+    const { canvas, context, lastUpdate, cacheData } = workspace
+    const now = Date.now()
+
+    if (lastUpdate + cacheTimeout < now) {
+      if (mirror) {
+        context.scale(-1, 1)
+        context.translate(width * -1, 0)
+      }
+
+      context.drawImage(
+        this._video,
+        0,
+        0,
+        videoWidth,
+        videoHeight,
+        0,
+        0,
+        width,
+        height
+      )
+
+      context.setTransform(1, 0, 0, 1, 0, 0)
+      workspace.lastUpdate = now
+    }
+
+    if (!cacheData[format]) {
+      cacheData[format] = { lastUpdate: 0 }
+    }
+    const formatCache = cacheData[format]
+
+    if (formatCache.lastUpdate + cacheTimeout < now) {
+      if (format === 'image-data') {
+        formatCache.lastData = context.getImageData(0, 0, width, height)
+      } else if (format === 'canvas') {
+        formatCache.lastUpdate = Infinity
+        formatCache.lastData = canvas
+      } else {
+        console.error(`video io error - unimplemented format ${format}`)
+        formatCache.lastUpdate = Infinity
+        formatCache.lastData = null
+      }
+
+      formatCache.lastUpdate = Math.max(
+        workspace.lastUpdate,
+        formatCache.lastUpdate
+      )
+    }
+
+    return formatCache.lastData
+  }
+
+  onError (error) {
+    console.error('Unhandled video io device error', error)
+  }
+
+  _setupVideo () {
+    if (this._singleSetup) {
+      return this._singleSetup
+    }
+
+    if (requestStack.length === 0) {
+      this._singleSetup = navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          width: { min: width, ideal: (480 * width) / height },
+          height: { min: height, ideal: 480 }
+        }
+      })
+      requestStack.push(streamPromise)
+    } else if (requestStack.length > 0) {
+      this._singleSetup = requestStack[0]
+      requestStack.push(true)
+    }
+    this._singleSetup
+      .then(stream => {
+        this._video = document.createElement('video')
+
+        try {
+          this._video.srcObject = stream
+        } catch (_error) {
+          this._video.src = window.URL.createObjectURL(stream)
+        }
+        this._video.play()
+        this._track = stream.getTracks()[0]
+        return this
+      })
+      .catch(error => {
+        this._singleSetup = null
+        this.onError(error)
+      })
+
+    return this._singleSetup
+  }
+
+  get videoReady () {
+    if (!this.enabled || !this._video || !this._track) {
+      return false
+    }
+    const { videoWidth, videoHeight } = this._video
+    return (
+      typeof videoWidth === 'number' &&
+      typeof videoHeight === 'number' &&
+      videoWidth > 0 &&
+      videoHeight > 0
+    )
+  }
+
+  _getWorkspace ({ dimensions, mirror }) {
+    let workspace = this._workspace.find(
+      space =>
+        space.dimensions.join('-') === dimensions.join('-') &&
+        space.mirror === mirror
+    )
+    if (!workspace) {
+      workspace = {
+        dimensions,
+        mirror,
+        canvas: document.createElement('canvas'),
+        lastUpdate: 0,
+        cacheData: {}
+      }
+      workspace.canvas.width = dimensions[0]
+      workspace.canvas.height = dimensions[1]
+      workspace.context = workspace.canvas.getContext('2d')
+      this._workspace.push(workspace)
+    }
+    return workspace
+  }
+}
+
+const fullscreenBtn = document.getElementById('fullscreen-btn')
+const exitFullscreen =
+  document.exitFullscreen ||
+  document.msExitFullscreen ||
+  document.mozCancelFullScreen ||
+  document.webkitExitFullscreen
+const requestFullscreen =
+  document.body.requestFullscreen ||
+  document.body.msRequestFullscreen ||
+  document.body.mozRequestFullScreen ||
+  document.body.webkitRequestFullscreen
+function isFullscreen () {
+  return (
+    document.fullscreenElement ||
+    document.mozFullScreenElement ||
+    document.webkitFullscreenElement ||
+    document.msFullscreenElement
+  )
+}
+function toggleFullscreen () {
+  if (isFullscreen()) {
+    exitFullscreen.call(document)
+  } else {
+    requestFullscreen.call(document.body)
+  }
+}
+fullscreenBtn.addEventListener('click', () => {
+  fullscreenBtn.blur()
+  toggleFullscreen()
+})
+function handleFullscreenChange () {
+  if (isFullscreen()) {
+    document.body.classList.add('fullscreen')
+  } else {
+    document.body.classList.remove('fullscreen')
+  }
+}
+document.addEventListener('fullscreenchange', handleFullscreenChange)
+document.addEventListener('mozfullscreenchange', handleFullscreenChange)
+document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+document.addEventListener('msfullscreenchange', handleFullscreenChange)
+
+window.init = async ({ width, height, ...options }) => {
+  window.vm = new window.NotVirtualMachine(width, height)
+  vm.setCompatibilityMode(options.fps)
+  vm.setTurboMode(options.turbo)
+  vm.requireLimits(options.limits, { fencing: options.fencing })
+
+  const storage = new ScratchStorage()
+  const AssetType = storage.AssetType
+  if (options.assets.project) {
+    storage.addWebStore([AssetType.Project], () => options.assets.project)
+    storage.addWebStore(
+      [AssetType.ImageVector, AssetType.ImageBitmap, AssetType.Sound],
+      ({ assetId, dataFormat }) => options.assets[`${assetId}.${dataFormat}`]
+    )
+  }
+  const progress = document.getElementById('loading-progress')
+  if (options.loadingProgress) {
+    const _load = storage.webHelper.load
+    let total = 0,
+      complete = 0
+    storage.webHelper.load = function (...args) {
+      const result = _load.call(this, ...args)
+      total += 1
+      const percentage = (complete / total) * 100
+      progress.dataset.progress = percentage.toFixed(2) + '%'
+      progress.style.setProperty('--progress', percentage + '%')
+      result.then(() => {
+        complete += 1
+        const percentage = (complete / total) * 100
+        progress.dataset.progress = percentage.toFixed(2) + '%'
+        progress.style.setProperty('--progress', percentage + '%')
+      })
+      return result
+    }
+  }
+  vm.attachStorage(storage)
+
+  function resize () {
+    const rect = canvas.getBoundingClientRect()
+    renderer.resize(rect.width, rect.height)
+    if (options.stretchStage) {
+      monitorWrapper.style.transform = `scaleX(${rect.width /
+        width}) scaleY(${rect.height / height})`
+    } else {
+      monitorWrapper.style.transform = `scale(${rect.height / height})`
+    }
+  }
+  const monitorWrapper = document.getElementById('monitors')
+  const canvas = document.getElementById('stage')
+  const renderer = new window.ScratchRender(
+    canvas,
+    -width / 2,
+    width / 2,
+    -height / 2,
+    height / 2
+  )
+  resize()
+  vm.attachRenderer(renderer)
+
+  vm.attachAudioEngine(new window.AudioEngine())
+  vm.attachV2BitmapAdapter(
+    new ScratchSVGRenderer.BitmapAdapter(null, null, width, height)
+  )
+  vm.setVideoProvider(new VideoProvider(width, height))
+  vm.start()
+
+  if (options.extensionCount > 0) {
+    const OldWorker = window.Worker
+    window.Worker = class extends OldWorker {
+      // deno-lint-ignore constructor-super
+      constructor (...args) {
+        if (args[0].endsWith('extension-worker.js')) {
+          if (options.extensionWorker.url) {
+            super(options.extensionWorker.url, ...args.slice(1))
+          } else {
+            super(
+              URL.createObjectURL(
+                new Blob([options.extensionWorker.script], {
+                  type: 'text/javascript'
+                })
+              ),
+              ...args.slice(1)
+            )
+          }
+        } else {
+          super(...args)
+        }
+      }
+    }
+  }
+
+  /* https://github.com/LLK/scratch-gui/blob/develop/src/containers/stage.jsx#L176-L300 */
+  const getEventXY = e => {
+    if (e.touches && e.touches[0]) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    } else if (e.changedTouches && e.changedTouches[0]) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+    }
+    return { x: e.clientX, y: e.clientY }
+  }
+  let mouseDown = false
+  let mouseDownPosition = null
+  let mouseDownTimeoutId = null
+  let isDragging = false
+  let dragId = null
+  let dragOffset = null
+  function cancelMouseDownTimeout () {
+    if (mouseDownTimeoutId !== null) {
+      clearTimeout(mouseDownTimeoutId)
+    }
+    mouseDownTimeoutId = null
+  }
+  // https://github.com/LLK/scratch-gui/blob/develop/src/containers/stage.jsx#L337-L366
+  function handleStartDrag () {
+    if (dragId || !mouseDownPosition) return
+    const drawableId = renderer.pick(mouseDownPosition.x, mouseDownPosition.y)
+    if (drawableId === null) return
+    const targetId = vm.getTargetIdForDrawableId(drawableId)
+    if (targetId === null) return
+    const target = vm.runtime.getTargetById(targetId)
+    if (!target || !target.draggable) return
+    target.goToFront()
+    const drawableData = renderer.extractDrawable(
+      drawableId,
+      mouseDownPosition.x,
+      mouseDownPosition.y
+    )
+    vm.startDrag(targetId)
+    isDragging = true
+    dragId = targetId
+    dragOffset = drawableData.scratchOffset
+  }
+  const accumulative = { x: 0, y: 0 }
+  function postIfPointerLocked (e, isDown) {
+    if (
+      document.pointerLockElement === canvas ||
+      document.mozPointerLockElement === canvas
+    ) {
+      accumulative.x += e.movementX
+      accumulative.y += e.movementY
+      vm.postIOData('mouse', {
+        isDown,
+        x: accumulative.x + width / 2,
+        y: accumulative.y + height / 2,
+        canvasWidth: width,
+        canvasHeight: height
+      })
+      return true
+    } else {
+      return false
+    }
+  }
+  function postMouse (event, isDown) {
+    const { x, y } = getEventXY(event)
+    const rect = canvas.getBoundingClientRect()
+    const mousePosition = { x: x - rect.left, y: y - rect.top }
+    vm.postIOData('mouse', {
+      isDown,
+      ...mousePosition,
+      canvasWidth: rect.width,
+      canvasHeight: rect.height
+    })
+    return { mousePosition, rect }
+  }
+  function handleMouseMove (event) {
+    if (postIfPointerLocked(event)) return
+    const { mousePosition, rect } = postMouse(event)
+    if (mouseDown && !isDragging) {
+      const distanceFromMouseDown = Math.hypot(
+        mousePosition.x - mouseDownPosition.x,
+        mousePosition.y - mouseDownPosition.y
+      )
+      if (distanceFromMouseDown > 3) {
+        cancelMouseDownTimeout()
+        handleStartDrag()
+      }
+    }
+    if (mouseDown && isDragging) {
+      const nativeSize = renderer.getNativeSize()
+      vm.postSpriteInfo({
+        x:
+          (nativeSize[0] / rect.width) * (mousePosition.x - rect.width / 2) +
+          dragOffset[0],
+        y: -(
+          (nativeSize[1] / rect.height) * (mousePosition.y - rect.height / 2) +
+          dragOffset[1]
+        ),
+        force: true
+      })
+    }
+  }
+  function handleMouseDown (event) {
+    mouseDown = true
+    vm.postIOData('keyboard', {
+      key: 'Mouse' + event.which,
+      isDown: true
+    })
+    if (postIfPointerLocked(event, true)) return
+    mouseDownPosition = postMouse(event, true).mousePosition
+    mouseDownTimeoutId = setTimeout(handleStartDrag, 400)
+    event.preventDefault()
+    if (!document.body.classList.contains('asking')) {
+      window.focus()
+    }
+  }
+  function handleMouseUp (event) {
+    cancelMouseDownTimeout()
+    mouseDown = false
+    mouseDownPosition = null
+    if (isDragging) {
+      vm.stopDrag(dragId)
+      isDragging = false
+      dragOffset = null
+      dragId = null
+    }
+    vm.postIOData('keyboard', {
+      key: 'Mouse' + event.which,
+      isDown: false
+    })
+    if (postIfPointerLocked(event, false)) return
+    postMouse(event, false)
+  }
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+  document.addEventListener('touchmove', handleMouseMove)
+  document.addEventListener('touchend', handleMouseUp, { passive: false })
+  canvas.addEventListener('wheel', event => {
+    vm.postIOData('mouseWheel', event)
+    event.preventDefault()
+  })
+  window.addEventListener('resize', resize)
+  canvas.addEventListener('contextmenu', event => {
+    event.preventDefault()
+  })
+  if (options.pointerLock) {
+    canvas.requestPointerLock =
+      canvas.requestPointerLock || canvas.mozRequestPointerLock
+    canvas.addEventListener('click', () => {
+      canvas.requestPointerLock()
+    })
+  }
+
+  /**
+   * Maps e.key to e.code. For example, Shift -> ShiftRight. This is because the
+   * keyup event doesn't fire when you let go of one shift if the other shift
+   * key is still held down.
+   */
+  const keyToCode = new Map()
+  function postKey (event, isDown) {
+    const key = !event.key || event.key === 'Dead' ? event.keyCode : event.key
+    vm.postIOData('keyboard', {
+      key: key,
+      isDown
+    })
+    vm.postIOData('keyboard', {
+      key: 'code_' + event.code,
+      isDown
+    })
+  }
+  document.addEventListener('keydown', event => {
+    if (event.target !== document && event.target !== document.body) return
+    const prevCode = keyToCode.get(event.key)
+    if (prevCode) {
+      if (prevCode !== event.code) {
+        vm.postIOData('keyboard', {
+          key: 'code_' + prevCode,
+          isDown: false
+        })
+      }
+    }
+    postKey(event, true)
+    keyToCode.set(event.key, event.code)
+    if (event.keyCode === 32 || (event.keyCode >= 37 && event.keyCode <= 40)) {
+      event.preventDefault()
+    }
+    if (
+      event.key === 'f' &&
+      (event.ctrlKey || event.metaKey) &&
+      !event.shiftKey &&
+      !event.altKey
+    ) {
+      toggleFullscreen()
+      event.preventDefault()
+    }
+  })
+  document.addEventListener('keyup', e => {
+    postKey(e, false)
+    keyToCode.delete(e.key)
+    if (e.target !== document && e.target !== document.body) {
+      e.preventDefault()
+    }
+  })
+  vm.postIOData('keyboard', {
+    key: 'HTMLifier',
+    isDown: true
+  })
+
+  const question = document.getElementById('question')
+  const askBox = document.getElementById('answer')
+  vm.runtime.addListener('QUESTION', questionData => {
+    // null means the question was interrupted by stop script block
+    if (questionData === null) {
+      document.body.classList.remove('asking')
+    } else {
+      document.body.classList.add('asking')
+      question.textContent = questionData
+      askBox.value = ''
+      askBox.focus()
+    }
+  })
+  askBox.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      // The asking class must be removed first because the VM may start the
+      // next question immediately inside the .emit call
+      document.body.classList.remove('asking')
+      vm.runtime.emit('ANSWER', askBox.value)
+    }
+  })
+
+  const getVariable = (targetId, variableId) => {
+    const target = targetId
+      ? vm.runtime.getTargetById(targetId)
+      : vm.runtime.getTargetForStage()
+    return target.variables[variableId]
+  }
+  const monitorStates = {}
+  vm.runtime.addListener('MONITORS_UPDATE', monitors => {
+    monitors.forEach((record, id) => {
+      const {
+        value,
+        visible,
+        mode,
+        x,
+        y,
+        width,
+        height,
+        params,
+        opcode,
+        spriteName,
+        sliderMin,
+        sliderMax,
+        isDiscrete,
+        targetId
+      } = record
+
+      if (!monitorStates[id]) {
+        const label = document.createElement('span')
+        label.className = 'monitor-label'
+        const name = params.VARIABLE || params.LIST || opcode
+        label.textContent = spriteName ? `${spriteName}: ${name}` : name
+
+        const value = document.createElement('span')
+        value.className = 'monitor-value'
+
+        const monitor = document.createElement('div')
+        monitor.className = 'monitor ' + mode
+        monitor.style.left = x + 'px'
+        monitor.style.top = y + 'px'
+        monitor.append(label, value)
+
+        monitorStates[id] = { monitor, valueElem: value, wasVisible: true }
+
+        if (mode === 'slider') {
+          const slider = document.createElement('input')
+          slider.type = 'range'
+          slider.min = sliderMin
+          slider.max = sliderMax
+          slider.step = isDiscrete ? 1 : 0.01
+          // Prevent tab focus, per #54, but it deviates from Scratch
+          slider.tabIndex = -1
+          slider.addEventListener('input', () => {
+            getVariable(targetId, id).value = slider.value
+          })
+          slider.addEventListener('change', () => {
+            getVariable(targetId, id).value = slider.value
+          })
+          monitorStates[id].slider = slider
+          monitor.append(slider)
+        } else if (mode === 'list') {
+          // If the list has never been resized, the width/height will be 0.
+          // Weird!
+          monitor.style.width = (width || 100) + 'px'
+          monitor.style.height = (height || 200) + 'px'
+
+          monitorStates[id].rowElems = []
+        }
+
+        monitorWrapper.append(monitor)
+      }
+
+      const {
+        monitor,
+        valueElem,
+        wasVisible,
+        lastValue = [],
+        slider,
+        rowElems
+      } = monitorStates[id]
+      if (visible) {
+        if (!wasVisible) {
+          monitor.style.display = null
+        }
+        const differed = Array.isArray(value)
+          ? JSON.stringify(lastValue) !== JSON.stringify(value)
+          : lastValue !== value
+        if (differed) {
+          if (Array.isArray(value)) {
+            if (lastValue.length !== rowElems.length) {
+              console.error(
+                "List monitor rowElems and lastValue lengths don't match."
+              )
+            }
+
+            value.forEach((val, i) => {
+              if (i >= lastValue.length) {
+                // Could also set width to (lastValue.length + '').length + 'ch'
+                const index = document.createElement('div')
+                index.className = 'index'
+                index.textContent = i + 1
+
+                const value = document.createElement('div')
+                value.className = 'row-value'
+
+                const row = document.createElement('div')
+                row.className = 'row'
+                row.append(index, value)
+
+                valueElem.append(row)
+                rowElems[i] = value
+              }
+
+              if (lastValue[i] !== val) {
+                rowElems[i].textContent = val
+              }
+            })
+
+            if (value.length < lastValue.length) {
+              for (const toRemove of rowElems.splice(
+                value.length,
+                lastValue.length - value.length
+              )) {
+                toRemove.parentNode.remove()
+              }
+            }
+          } else {
+            // The HTMLifier used to use Number(value.toFixed(6)) but I don't
+            // think Scratch does that for monitors
+            valueElem.textContent = value
+            if (slider) {
+              slider.value = value
+            }
+          }
+        }
+      } else if (wasVisible) {
+        monitor.style.display = 'none'
+      }
+      monitorStates[id].wasVisible = visible
+      // `value` is a live array
+      monitorStates[id].lastValue = Array.isArray(value) ? [...value] : value
+    })
+  })
+
+  vm.postIOData('userData', { username: options.username })
+
+  for (let i = 0; i < options.extensionCount; i++) {
+    await vm.extensionManager.loadExtensionURL(String(i))
+  }
+
+  await vm.loadProject(
+    options.assets.file
+      ? await fetch(options.assets.file).then(r => r.arrayBuffer())
+      : typeof options.assets.project === 'string'
+      ? await storage.load(storage.AssetType.Project).then(asset => asset.data)
+      : // project.json was included as parsed JSON
+        JSON.stringify(options.assets.project)
+  )
+
+  const cloudProvider = new CloudProvider(options)
+  vm.setCloudProvider(cloudProvider)
+  if (options.cloud.specialBehaviours || !options.cloud.serverUrl) {
+    const stageVariables = vm.runtime.getTargetForStage().variables
+    for (const { name, isCloud } of Object.values(stageVariables)) {
+      if (isCloud) {
+        if (
+          options.cloud.specialBehaviours &&
+          options.cloud.serverUrl &&
+          !name.startsWith(CLOUD_PREFIX + 'local storage')
+        ) {
+          continue
+        }
+        const value = localStorage.getItem('[s3] ' + name)
+        if (value !== null) {
+          vm.postIOData('cloud', { varUpdate: { name, value } })
+        }
+      }
+    }
+  }
+  if (options.cloud.specialBehaviours) {
+    cloudProvider.handleUrlChange()
+  }
+
+  progress.remove()
+  const loadingImage = document.getElementById('loading-image')
+  if (loadingImage) {
+    loadingImage.remove()
+  }
+  document.body.classList.remove('loading')
+
+  const greenFlag = document.getElementById('start-btn')
+  const stopSign = document.getElementById('stop-btn')
+  greenFlag.addEventListener('click', () => {
+    greenFlag.blur()
+    vm.greenFlag()
+  })
+  stopSign.addEventListener('click', () => {
+    stopSign.blur()
+    vm.stopAll()
+  })
+  vm.on('PROJECT_RUN_START', () => {
+    document.body.classList.add('running')
+    stopSign.disabled = false
+  })
+  vm.on('PROJECT_RUN_STOP', () => {
+    document.body.classList.remove('running')
+    stopSign.disabled = true
+  })
+  if (options.autoStart) {
+    vm.greenFlag()
+  }
+
+  document
+    .getElementById('download-btn')
+    .addEventListener('click', async () => {
+      download(await vm.saveProjectSb3(), document.title + '.sb3')
+    })
+  const addSpriteInput = document.getElementById('add-sprite-file')
+  addSpriteInput.addEventListener('change', async () => {
+    addSpriteInput.disabled = true
+    for (const file of addSpriteInput.files) {
+      // 1. Convert the File to an arrayBuffer. I care less about browser
+      // support, so I can use async/await + .arrayBuffer
+      // https://github.com/LLK/scratch-gui/blob/develop/src/lib/file-uploader.js#L25
+      const sprite = new Uint8Array(await file.arrayBuffer())
+
+      // 2. Convert a costume to a sprite (skipping for now)
+      // https://github.com/LLK/scratch-gui/blob/develop/src/lib/file-uploader.js#L208
+
+      // 3. Add to VM
+      await vm.addSprite(sprite)
+    }
+    addSpriteInput.disabled = false
+    addSpriteInput.value = null
+  })
+
+  canvas.addEventListener('mousedown', handleMouseDown)
+  canvas.addEventListener('touchstart', handleMouseDown, { passive: false })
+}
+
+const errorsTextarea = document.getElementById('errors')
+function handleHashChange () {
+  // #show-errors-<Han sheep>
+  if (window.location.hash === '#show-errors-%E7%BE%8A') {
+    if (!window.onNewError) {
+      window.onNewError = () => {
+        errorsTextarea.value = `${
+          window.errors.length
+        } error(s)\n${window.errors.join('\n')}`
+      }
+      window.onNewError()
+    }
+    errorsTextarea.style.display = 'block'
+  } else if (window.onNewError) {
+    window.onNewError = null
+    errorsTextarea.style.display = 'none'
+  }
+}
+window.addEventListener('hashchange', handleHashChange)
+handleHashChange()
+
+// Not used by the template, but might be convenient for un-HTMLifying if I
+// remember this function exists
+window.download = (blob, name = 'download') => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  document.body.append(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
+</script> <script>
+const GENERATED = 1712910692258
+const initOptions = {
+	"width": 480,
+	"height": 360,
+	"stretchStage": false,
+	"fps": 30,
+	"turbo": false,
+	"limits": true,
+	"fencing": true,
+	"pointerLock": false,
+	"autoStart": true,
+	"username": "Ken",
+	"loadingProgress": true,
+	"cloud": {
+		"serverUrl": null,
+		"specialBehaviours": false,
+		"projectId": "276660763"
+	},
+	"extensionWorker": {
+		"url": "https://sheeptester.github.io/scratch-vm/16-9/extension-worker.js"
+	},
+	"extensionCount": 0,
+	"assets": {
+		"project": "./project.json",
+		"0b15e839bd49c67bf7a873321726e30d.svg": "./0b15e839bd49c67bf7a873321726e30d.svg",
+		"3af93b01012de35ac54cd986ed6334bb.svg": "./3af93b01012de35ac54cd986ed6334bb.svg",
+		"018254c9960e3eadcc62a6db1dba8c40.svg": "./018254c9960e3eadcc62a6db1dba8c40.svg",
+		"8ee15d78a7635433d24c33c340fccd02.svg": "./8ee15d78a7635433d24c33c340fccd02.svg",
+		"f24659c3b437ec2d90b5dbb8e696525a.svg": "./f24659c3b437ec2d90b5dbb8e696525a.svg",
+		"080ae369578c9114948ca204c9c70fdf.svg": "./080ae369578c9114948ca204c9c70fdf.svg",
+		"30745aef4c3031b2af58d754069b939e.svg": "./30745aef4c3031b2af58d754069b939e.svg",
+		"e2c777bf2b2a7c616e2fba0322b5cffe.svg": "./e2c777bf2b2a7c616e2fba0322b5cffe.svg",
+		"50f29d0e028ec5c11210d0e2f91f83dd.wav": "./50f29d0e028ec5c11210d0e2f91f83dd.wav",
+		"998a10a18816775d67adb641a9b02572.wav": "./998a10a18816775d67adb641a9b02572.wav",
+		"4f51f96d8970598507351630d056332b.wav": "./4f51f96d8970598507351630d056332b.wav",
+		"416c7e2bec72fb57423f1233a25e02cd.wav": "./416c7e2bec72fb57423f1233a25e02cd.wav",
+		"9b66edbf7335b60e1c780a945891f144.wav": "./9b66edbf7335b60e1c780a945891f144.wav",
+		"9106b561baabd47c1120f546804db7c2.wav": "./9106b561baabd47c1120f546804db7c2.wav",
+		"f8e2cf4b2c7b9e6461814736b5b357a9.wav": "./f8e2cf4b2c7b9e6461814736b5b357a9.wav",
+		"bd37fa0b59ad1860f6e687473f7a18f6.wav": "./bd37fa0b59ad1860f6e687473f7a18f6.wav",
+		"5f4216970527d5a2e259758ba12e6a1b.wav": "./5f4216970527d5a2e259758ba12e6a1b.wav",
+		"c2e608b716dcee4eaa469bc802024d52.wav": "./c2e608b716dcee4eaa469bc802024d52.wav",
+		"98fc991c55d219ab0a264d00f86e3f53.wav": "./98fc991c55d219ab0a264d00f86e3f53.wav",
+		"6e24889fd698fe73045205c959206dc6.wav": "./6e24889fd698fe73045205c959206dc6.wav",
+		"2399e9430eb077b7044522058725858a.wav": "./2399e9430eb077b7044522058725858a.wav",
+		"20d382e27891fdf5aef4b2f083260a7e.wav": "./20d382e27891fdf5aef4b2f083260a7e.wav",
+		"3339a2953a3bf62bb80e54ff575dbced.svg": "./3339a2953a3bf62bb80e54ff575dbced.svg",
+		"83a9787d4cb6f3b7632b4ddfebf74367.wav": "./83a9787d4cb6f3b7632b4ddfebf74367.wav",
+		"a4cc8f8b54d151ecfcac9c13019e5f44.svg": "./a4cc8f8b54d151ecfcac9c13019e5f44.svg",
+		"3627964bc54741d3b8007299fb4ed752.svg": "./3627964bc54741d3b8007299fb4ed752.svg",
+		"b178b119f3d2d5c3a5964ca3f53d57b6.svg": "./b178b119f3d2d5c3a5964ca3f53d57b6.svg",
+		"87f9e3348afd7ac731666d4001e8aad7.svg": "./87f9e3348afd7ac731666d4001e8aad7.svg",
+		"525f1cab6db6fc21e276784e670c735c.svg": "./525f1cab6db6fc21e276784e670c735c.svg",
+		"bd083903160b7d3081d1ac2da60e15ae.svg": "./bd083903160b7d3081d1ac2da60e15ae.svg",
+		"948e07a2714a7ec92ee8455de41ae917.svg": "./948e07a2714a7ec92ee8455de41ae917.svg",
+		"555dea6ecb1d0d0fd249505202049154.svg": "./555dea6ecb1d0d0fd249505202049154.svg",
+		"b91302d335943a633155765efea83d5c.svg": "./b91302d335943a633155765efea83d5c.svg",
+		"7f3233a6adf26e16ba51d4730a31ce06.svg": "./7f3233a6adf26e16ba51d4730a31ce06.svg",
+		"940d659834057be1b00162661f72fb02.svg": "./940d659834057be1b00162661f72fb02.svg",
+		"16e997fcd0ba964c9ef490697e01d6a4.svg": "./16e997fcd0ba964c9ef490697e01d6a4.svg",
+		"470ab5e4b9f8f0f7ad7af24f01821732.svg": "./470ab5e4b9f8f0f7ad7af24f01821732.svg",
+		"49cf5f758ad165a35d07027c0a6750d1.svg": "./49cf5f758ad165a35d07027c0a6750d1.svg",
+		"2a8e5515d3a20b11a6faf947f01a7aa3.svg": "./2a8e5515d3a20b11a6faf947f01a7aa3.svg",
+		"b09226862dd0612123970d45347eb800.svg": "./b09226862dd0612123970d45347eb800.svg",
+		"be90a86282ca07770cae03c6d19c3a95.svg": "./be90a86282ca07770cae03c6d19c3a95.svg",
+		"d25b0948c7c4d39f6771d908f48204c3.svg": "./d25b0948c7c4d39f6771d908f48204c3.svg",
+		"723d8de24e637985a186d1a44ea7571f.svg": "./723d8de24e637985a186d1a44ea7571f.svg",
+		"c4898212048feb5d99fc577149cec3e5.svg": "./c4898212048feb5d99fc577149cec3e5.svg",
+		"6ceaaa05a8bdf75275f72ec26f39ba63.svg": "./6ceaaa05a8bdf75275f72ec26f39ba63.svg",
+		"7e27afbe735ed82645fe4b232fb12729.svg": "./7e27afbe735ed82645fe4b232fb12729.svg",
+		"67769cd8ccfa3733c152fddddc6f0036.svg": "./67769cd8ccfa3733c152fddddc6f0036.svg",
+		"7d90af785530871d3c27e56d4ed9f8c5.svg": "./7d90af785530871d3c27e56d4ed9f8c5.svg",
+		"57ce398a46a16161b40c42c04f469538.svg": "./57ce398a46a16161b40c42c04f469538.svg",
+		"ff31b5a197d9e79a3387ec9ccfc2716e.svg": "./ff31b5a197d9e79a3387ec9ccfc2716e.svg",
+		"49f8dd840d2aa29f5f9959834177153f.svg": "./49f8dd840d2aa29f5f9959834177153f.svg",
+		"0aaa4093fb326e78f16f84b60a5a093d.svg": "./0aaa4093fb326e78f16f84b60a5a093d.svg",
+		"5fcda33bdc17d051116d99e7ff73b95b.svg": "./5fcda33bdc17d051116d99e7ff73b95b.svg",
+		"10e7daffb9d5c26c9a8d1d715b5e91bb.svg": "./10e7daffb9d5c26c9a8d1d715b5e91bb.svg",
+		"731421742ed1beade828e834745c1f0e.svg": "./731421742ed1beade828e834745c1f0e.svg",
+		"33ed162f466468707a704126d63c560f.svg": "./33ed162f466468707a704126d63c560f.svg",
+		"6a7e459c04c13ce3b0d46634b2ed67ee.svg": "./6a7e459c04c13ce3b0d46634b2ed67ee.svg",
+		"e25d79f8aa8e4d26aa8628a730e127f0.svg": "./e25d79f8aa8e4d26aa8628a730e127f0.svg",
+		"65a77a31d7bf18ffb55cc4e29d4b8d63.svg": "./65a77a31d7bf18ffb55cc4e29d4b8d63.svg",
+		"16af980b63fa765daa207b5bb788a2de.svg": "./16af980b63fa765daa207b5bb788a2de.svg",
+		"d8f47a13b686bf722ac26d56d9d1235f.svg": "./d8f47a13b686bf722ac26d56d9d1235f.svg",
+		"19997576fd1322ef62ef301b87e80625.svg": "./19997576fd1322ef62ef301b87e80625.svg",
+		"ef98bf33d7061c511ce4e8e7781d7a72.svg": "./ef98bf33d7061c511ce4e8e7781d7a72.svg",
+		"e8f7ab363e2d7930188926c53f45a771.svg": "./e8f7ab363e2d7930188926c53f45a771.svg",
+		"f9642c708e954e733b340f5f77867a5a.svg": "./f9642c708e954e733b340f5f77867a5a.svg",
+		"272935d0ba28d3b6bf47de5d3f299ab5.svg": "./272935d0ba28d3b6bf47de5d3f299ab5.svg",
+		"a7140680f046c578d189d696f33c3245.svg": "./a7140680f046c578d189d696f33c3245.svg",
+		"2951b8c0bb55fc3e7489a8b8536ad2fd.svg": "./2951b8c0bb55fc3e7489a8b8536ad2fd.svg",
+		"23e4bab9fda39aec7c96dd4b120d9721.svg": "./23e4bab9fda39aec7c96dd4b120d9721.svg",
+		"b5801d8188747ac12912c7380a8f15f1.svg": "./b5801d8188747ac12912c7380a8f15f1.svg",
+		"bc8c265624cee39ddf5936ca4d212331.svg": "./bc8c265624cee39ddf5936ca4d212331.svg",
+		"7a26d36584dbfc68e40b2c4010dbedfe.svg": "./7a26d36584dbfc68e40b2c4010dbedfe.svg",
+		"473d830a1514c21454830af693c1a35e.svg": "./473d830a1514c21454830af693c1a35e.svg",
+		"8b6cbc456fc3110e177d63f0c21adca8.svg": "./8b6cbc456fc3110e177d63f0c21adca8.svg",
+		"e34c66f731684717fad9a9bec1fc107a.svg": "./e34c66f731684717fad9a9bec1fc107a.svg",
+		"6c8bdd4b853caed78bc986f1aca8a513.svg": "./6c8bdd4b853caed78bc986f1aca8a513.svg",
+		"0faf5c4394cc0b352ec63df9a40ae98f.svg": "./0faf5c4394cc0b352ec63df9a40ae98f.svg",
+		"d6211773ae135611c8375135822b5539.svg": "./d6211773ae135611c8375135822b5539.svg",
+		"1a44681f567277d20ad2857b2ff54e70.svg": "./1a44681f567277d20ad2857b2ff54e70.svg",
+		"e589a678281eccdc2364ad380fee5962.svg": "./e589a678281eccdc2364ad380fee5962.svg",
+		"83a0c7018eaadd709b460bbcb84d8e73.svg": "./83a0c7018eaadd709b460bbcb84d8e73.svg",
+		"42554ef7c6132b286c566bb45c3a2d15.svg": "./42554ef7c6132b286c566bb45c3a2d15.svg",
+		"d17d11d8a910a551b79849a00901a364.svg": "./d17d11d8a910a551b79849a00901a364.svg",
+		"3ecfec778fc91d39051d586f07ae5ab4.svg": "./3ecfec778fc91d39051d586f07ae5ab4.svg",
+		"a949def5a342dbce8694dfab3f60afcf.svg": "./a949def5a342dbce8694dfab3f60afcf.svg",
+		"5d360b275a3b0de543b03fb8b4141771.svg": "./5d360b275a3b0de543b03fb8b4141771.svg",
+		"e9567fddae646d488e5868b9afe220fd.svg": "./e9567fddae646d488e5868b9afe220fd.svg",
+		"0226ba9e460adf5238a88275fcb79f24.svg": "./0226ba9e460adf5238a88275fcb79f24.svg",
+		"bcee9f434cdb46dcafb57a70e44f542d.svg": "./bcee9f434cdb46dcafb57a70e44f542d.svg",
+		"a9106ad5002e7863a8e8e05f3241faa4.svg": "./a9106ad5002e7863a8e8e05f3241faa4.svg",
+		"1050d9a289280ac7411d2badd984af4f.svg": "./1050d9a289280ac7411d2badd984af4f.svg",
+		"d594dc472e67af84068e27393054e117.svg": "./d594dc472e67af84068e27393054e117.svg",
+		"d11f0fddebb52faf973a363ec4db7861.svg": "./d11f0fddebb52faf973a363ec4db7861.svg",
+		"836f38f0f2af443c486b8f7404c22d3c.svg": "./836f38f0f2af443c486b8f7404c22d3c.svg",
+		"2a9b714d76173cbc4b94bbfd39a5758c.svg": "./2a9b714d76173cbc4b94bbfd39a5758c.svg",
+		"80a2870d47d07e71dc6e8fddec954410.svg": "./80a2870d47d07e71dc6e8fddec954410.svg",
+		"61a5a2b082adda1de48788347260f5aa.svg": "./61a5a2b082adda1de48788347260f5aa.svg",
+		"6cb3fb8a2c76de716c8141b0e5795013.svg": "./6cb3fb8a2c76de716c8141b0e5795013.svg",
+		"a251cd6bd0fcf9f998168dec6ef686aa.svg": "./a251cd6bd0fcf9f998168dec6ef686aa.svg",
+		"c1466eb42dbe118d10133db3938d1871.svg": "./c1466eb42dbe118d10133db3938d1871.svg",
+		"aeeaf28cb2708ac20b135d2c1be45349.svg": "./aeeaf28cb2708ac20b135d2c1be45349.svg",
+		"089902490a715319f6af5580c93bbade.svg": "./089902490a715319f6af5580c93bbade.svg",
+		"c0855f20971d4bb8ffac81589e1a825a.svg": "./c0855f20971d4bb8ffac81589e1a825a.svg",
+		"b6e3579ce176bd9735cd8dbb4a40976b.svg": "./b6e3579ce176bd9735cd8dbb4a40976b.svg",
+		"4e8f84173e55b803ebe47112ae2fcdd9.svg": "./4e8f84173e55b803ebe47112ae2fcdd9.svg",
+		"dc16010671425325874bfa3e44c5a135.svg": "./dc16010671425325874bfa3e44c5a135.svg",
+		"955fe7abfef6b6f7a23bf4f1284fa085.svg": "./955fe7abfef6b6f7a23bf4f1284fa085.svg",
+		"db386f32cc69d9673c9c369243fc5583.svg": "./db386f32cc69d9673c9c369243fc5583.svg",
+		"cd21514d0531fdffb22204e0ec5ed84a.svg": "./cd21514d0531fdffb22204e0ec5ed84a.svg",
+		"ae77a8a4df233c3b3e0b564f4d27d5f4.svg": "./ae77a8a4df233c3b3e0b564f4d27d5f4.svg",
+		"13139d288a10a6b8c85c5ee21bb9c031.svg": "./13139d288a10a6b8c85c5ee21bb9c031.svg",
+		"a140212099422f5f9d8f832f1ec5468f.svg": "./a140212099422f5f9d8f832f1ec5468f.svg",
+		"ffe5b79be7e19c13d0d082cc28ac6b26.svg": "./ffe5b79be7e19c13d0d082cc28ac6b26.svg",
+		"6ef02a12cdeb36d5cbb81dec2f1bb262.svg": "./6ef02a12cdeb36d5cbb81dec2f1bb262.svg",
+		"0d2486a40e4ab1c8777dd901e4030bd9.svg": "./0d2486a40e4ab1c8777dd901e4030bd9.svg",
+		"c640aa1af3213f8f31b5f2dbd3f6fc99.svg": "./c640aa1af3213f8f31b5f2dbd3f6fc99.svg",
+		"200ea8909266fbe5428b00d9249c07ae.wav": "./200ea8909266fbe5428b00d9249c07ae.wav",
+		"8cad2f580ad247659b5d7a45cdcad510.wav": "./8cad2f580ad247659b5d7a45cdcad510.wav",
+		"29fe7019f52c8da29204520017dcf15a.wav": "./29fe7019f52c8da29204520017dcf15a.wav",
+		"eafaba587c2318cd17bd5d7a28342161.wav": "./eafaba587c2318cd17bd5d7a28342161.wav",
+		"a13c317dd40053581e9516d0313a63dd.wav": "./a13c317dd40053581e9516d0313a63dd.wav",
+		"838119e77146f5b714d6aa3e9b182b0e.wav": "./838119e77146f5b714d6aa3e9b182b0e.wav",
+		"9c5b7421292bae9fcd6d58a9378cc62c.wav": "./9c5b7421292bae9fcd6d58a9378cc62c.wav",
+		"e3c1e7bc85583d93c7927c17ed310d71.svg": "./e3c1e7bc85583d93c7927c17ed310d71.svg",
+		"3400794225dcd49b86f6ec77785a9482.svg": "./3400794225dcd49b86f6ec77785a9482.svg",
+		"23cc9961f1e2ab31a829b2adecf230f1.svg": "./23cc9961f1e2ab31a829b2adecf230f1.svg",
+		"8cc2d35de0cae9e690e0af8b3e59f60c.svg": "./8cc2d35de0cae9e690e0af8b3e59f60c.svg",
+		"311dd9014ddfd10ffeab39d13a798eb5.svg": "./311dd9014ddfd10ffeab39d13a798eb5.svg",
+		"455e61029606774360a7ba293e0dc308.svg": "./455e61029606774360a7ba293e0dc308.svg",
+		"8f4071fec620a7d33e7a08536aaa4770.svg": "./8f4071fec620a7d33e7a08536aaa4770.svg",
+		"bc57ca371b293c4118d02ea692e74e92.svg": "./bc57ca371b293c4118d02ea692e74e92.svg",
+		"fabffbf5cb189249fdfc8143ea2ece12.svg": "./fabffbf5cb189249fdfc8143ea2ece12.svg",
+		"cddbb4d9960fdd4453efd8e286aa02d3.svg": "./cddbb4d9960fdd4453efd8e286aa02d3.svg",
+		"56a03a7af1ff1697279a73dfbe47ca0c.svg": "./56a03a7af1ff1697279a73dfbe47ca0c.svg",
+		"5930e05d4dc9aa8ba1454c6840d7e681.svg": "./5930e05d4dc9aa8ba1454c6840d7e681.svg",
+		"bd88aebcff5f5cf654b7b05d2aaaad42.svg": "./bd88aebcff5f5cf654b7b05d2aaaad42.svg",
+		"e6fe71632e2979e9ddcc45865944fac0.svg": "./e6fe71632e2979e9ddcc45865944fac0.svg",
+		"358e4218a210d8b777e173bde6b46464.svg": "./358e4218a210d8b777e173bde6b46464.svg",
+		"5d20de4c6be952d3c159c85d0559e4a9.svg": "./5d20de4c6be952d3c159c85d0559e4a9.svg",
+		"6035b172504d15a53daf37f2ad1a18ea.svg": "./6035b172504d15a53daf37f2ad1a18ea.svg",
+		"77a241925afb32e86d3304ceb87a5065.svg": "./77a241925afb32e86d3304ceb87a5065.svg",
+		"cc1e651401e50f9dbe5a5747be5e2bbb.svg": "./cc1e651401e50f9dbe5a5747be5e2bbb.svg",
+		"1d4be97ed8bb4f1c69e2e63dd6fd58e3.svg": "./1d4be97ed8bb4f1c69e2e63dd6fd58e3.svg",
+		"a8563699b68a14263b22ca55e4e67b70.svg": "./a8563699b68a14263b22ca55e4e67b70.svg",
+		"e904795bcd9bf593ac90d1bcfdab67c5.svg": "./e904795bcd9bf593ac90d1bcfdab67c5.svg",
+		"9a0f252585535870ec488d4d3fd7a657.svg": "./9a0f252585535870ec488d4d3fd7a657.svg",
+		"07abedba2e125dae99668eefcf1cc362.svg": "./07abedba2e125dae99668eefcf1cc362.svg",
+		"b47fb8070f6de22d27036fec8e59f096.svg": "./b47fb8070f6de22d27036fec8e59f096.svg",
+		"7912cb6a59c500b1322369be27a4bc8e.svg": "./7912cb6a59c500b1322369be27a4bc8e.svg",
+		"fe49e8e46fcadf8a440b0f4511d3cdde.svg": "./fe49e8e46fcadf8a440b0f4511d3cdde.svg",
+		"31657e4418606e2850e01c9a700bce68.svg": "./31657e4418606e2850e01c9a700bce68.svg",
+		"02d12e526937563868ad3c847972d650.svg": "./02d12e526937563868ad3c847972d650.svg",
+		"3f8222896a2211ecc6fd703f5fb43918.svg": "./3f8222896a2211ecc6fd703f5fb43918.svg",
+		"5114269ea5862b0e878fbd4dba67ad83.svg": "./5114269ea5862b0e878fbd4dba67ad83.svg",
+		"0aef660704ed2fe7b9e1ab2cb55526e0.svg": "./0aef660704ed2fe7b9e1ab2cb55526e0.svg",
+		"8766795c037e41eb6c4a001e1721baa3.svg": "./8766795c037e41eb6c4a001e1721baa3.svg"
+	}
+}
+init(initOptions)
+</script>
+  </body>
+</html>
